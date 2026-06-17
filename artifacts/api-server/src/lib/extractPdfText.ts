@@ -4,7 +4,17 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { randomBytes } from "crypto";
 
-const PDFTOTEXT = "/nix/store/29bwm71lzx4b0my95bm494crhnsakj5x-replit-runtime-path/bin/pdftotext";
+import { execSync } from "child_process";
+
+function findPdfToText(): string {
+  try {
+    const found = execSync("which pdftotext 2>/dev/null || ls /nix/store/*/bin/pdftotext 2>/dev/null | head -1", { encoding: "utf8" }).trim().split("\n")[0].trim();
+    if (found) return found;
+  } catch {}
+  return "pdftotext";
+}
+
+const PDFTOTEXT = findPdfToText();
 
 export async function extractPdfText(buffer: Buffer): Promise<string> {
   const tmpFile = join(tmpdir(), `pdf_${randomBytes(8).toString("hex")}.pdf`);
