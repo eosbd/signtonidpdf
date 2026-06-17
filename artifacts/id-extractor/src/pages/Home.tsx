@@ -1,18 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { FileUpload } from "@/components/ui/file-upload";
 import { useUploadDocument, useUpdateRecord, getListRecordsQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Download } from "lucide-react";
 import { NidCard } from "@/components/NidCard";
-
 import type { Record } from "@workspace/api-client-react";
+
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const EN_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const BENGALI_DIGIT: { [key: string]: string } = {
@@ -101,6 +95,12 @@ const processBackImage = (src: string): Promise<string> =>
     img.src = src;
   });
 
+interface PublicSettings {
+  serviceEnabled: boolean;
+  pricePerDownload: number;
+  noticeText: string;
+}
+
 export default function Home() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -111,8 +111,25 @@ export default function Home() {
   const [formData, setFormData] = useState<Partial<Record>>({ issueDate: getTodayBengali() });
   const [photoFront, setPhotoFront] = useState<string | null>(null);
   const [photoBack, setPhotoBack] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [serviceSettings, setServiceSettings] = useState<PublicSettings>({
+    serviceEnabled: true,
+    pricePerDownload: 50,
+    noticeText: "স্বাগতম! এনআইডি কার্ড সার্ভিস চালু আছে।",
+  });
+
+  useEffect(() => {
+    fetch(`${BASE}/api/settings/public`)
+      .then((r) => r.json())
+      .then((data) => setServiceSettings(data))
+      .catch(() => {});
+  }, []);
 
   const handleFileUpload = (file: File) => {
+    if (!file.name.endsWith(".pdf") && file.type !== "application/pdf") {
+      toast({ title: "ভুল ফাইল", description: "শুধুমাত্র PDF ফাইল আপলোড করুন।", variant: "destructive" });
+      return;
+    }
     uploadDoc.mutate(
       { data: { file } },
       {
@@ -133,12 +150,12 @@ export default function Home() {
               setFormData((prev) => ({ ...prev, photoBack: processed }));
             });
           }
-          toast({ title: "Extraction Complete", description: "Successfully extracted fields from document." });
+          toast({ title: "সফল!", description: "PDF থেকে তথ্য সংগ্রহ করা হয়েছে।" });
         },
         onError: (err) => {
           toast({
-            title: "Extraction Failed",
-            description: (err as { error?: string }).error || "An unknown error occurred.",
+            title: "ব্যর্থ হয়েছে",
+            description: (err as { error?: string }).error || "একটি সমস্যা হয়েছে।",
             variant: "destructive",
           });
         },
@@ -168,7 +185,14 @@ export default function Home() {
     reader.readAsDataURL(file);
   };
 
-  const handleDownload = () => {
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const handleGenerateCard = () => {
     const nidNum = (formData.idNumber ?? "").replace(/\D/g, "").slice(0, 10);
     const filename = nidNum ? `nid-${nidNum}` : "nid-card";
     const prevTitle = document.title;
@@ -185,16 +209,22 @@ export default function Home() {
     updateRecord.mutate(
       { id: recordId, data: saveData },
       {
-        onSuccess: () => doPrint(),
-        onError: () => {
-          toast({ title: "সংরক্ষণ ব্যর্থ", description: "ডেটা সেভ করতে ব্যর্থ। তবুও প্রিন্ট চেষ্টা করছে।", variant: "destructive" });
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListRecordsQueryKey() });
+          toast({ title: "সংরক্ষিত হয়েছে", description: "কার্ড সেভ হয়েছে। এখন প্রিন্ট হবে।" });
           doPrint();
         },
+        onError: () => doPrint(),
       }
     );
   };
 
-  const inputCls = "bg-slate-800/50 border-slate-700 focus:border-[#06b6d4] focus:ring-1 focus:ring-[#06b6d4] text-slate-100";
+  const handleReset = () => {
+    setRecordId(null);
+    setFormData({ issueDate: getTodayBengali() });
+    setPhotoFront(null);
+    setPhotoBack(null);
+  };
 
   const cardProps = {
     nameBangla: formData.nameBangla ?? "",
@@ -216,175 +246,227 @@ export default function Home() {
 
   return (
     <>
-      {/* ── Screen UI — hidden during print ── */}
       <div className="no-print">
-        <AppLayout>
-          <div className="flex-1 overflow-auto bg-[#0f172a] text-slate-100 p-4 md:p-8 dark min-h-full">
-            <div className="max-w-3xl mx-auto space-y-6">
+        <AppLayout pageTitle="Sign To Need PDF">
 
-              <div className="flex flex-col items-center text-center space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/20">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  LIVE SYSTEM ACTIVE
-                </div>
-                <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-white font-['Hind_Siliguri'] mt-4">
-                  এনআইডি কার্ড মেইকার
-                </h1>
-                <p className="text-slate-400 font-['Hind_Siliguri']">
-                  পিডিএফ আপলোড করুন অথবা ম্যানুয়ালি ফর্ম পূরণ করুন
-                </p>
-              </div>
-
-              <Card className="bg-[#1e293b] border-slate-700 shadow-xl overflow-hidden">
-                <CardContent className="p-0">
-                  <FileUpload
-                    onFileSelect={handleFileUpload}
-                    isLoading={uploadDoc.isPending}
-                    className="min-h-[160px] bg-[#1e293b]/50 border-dashed border-slate-600 hover:border-[#06b6d4]/50 transition-colors"
-                    title="পিডিএফ ফাইল এখানে ছাড়ুন বা ক্লিক করুন"
-                    description="পিডিএফ (Max 10MB)"
-                    buttonText="ডকুমেন্ট নির্বাচন করুন"
-                    loadingText="তথ্য সংগ্রহ করা হচ্ছে..."
-                  />
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card className="bg-[#1e293b] border-slate-700">
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="flex-1 space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri'] font-semibold">ব্যক্তির ছবি</Label>
-                      <p className="text-xs text-slate-500 font-['Hind_Siliguri']">পিডিএফ থেকে স্বয়ংক্রিয়ভাবে নেওয়া হয়</p>
-                      <Input
-                        type="file" accept="image/*"
-                        onChange={(e) => handlePhotoUpload(e, "front")}
-                        className="bg-slate-800 border-slate-700 text-slate-300 cursor-pointer file:text-slate-300 file:bg-slate-700 file:border-0 file:rounded-md file:px-2 file:mr-2 text-xs"
-                        data-testid="input-photo-front"
-                      />
-                    </div>
-                    <div className="w-20 h-24 rounded-md bg-slate-800 border-2 border-slate-600 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                      {photoFront
-                        ? <img src={photoFront} alt="Photo" className="w-full h-full object-cover" />
-                        : <span className="text-[10px] text-slate-500 font-['Hind_Siliguri'] text-center px-1">ছবি নেই</span>
-                      }
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-[#1e293b] border-slate-700">
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className="flex-1 space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri'] font-semibold">সিগনেচার / ফিংগারপ্রিন্ট</Label>
-                      <p className="text-xs text-slate-500 font-['Hind_Siliguri']">পিডিএফ থেকে স্বয়ংক্রিয়ভাবে নেওয়া হয়</p>
-                      <Input
-                        type="file" accept="image/*"
-                        onChange={(e) => handlePhotoUpload(e, "back")}
-                        className="bg-slate-800 border-slate-700 text-slate-300 cursor-pointer file:text-slate-300 file:bg-slate-700 file:border-0 file:rounded-md file:px-2 file:mr-2 text-xs"
-                        data-testid="input-photo-back"
-                      />
-                    </div>
-                    <div className="w-20 h-24 rounded-md bg-white border-2 border-slate-600 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                      {photoBack
-                        ? <img src={photoBack} alt="Signature" className="w-full h-full object-contain p-1" />
-                        : <span className="text-[10px] text-slate-400 font-['Hind_Siliguri'] text-center px-1">সিগনেচার নেই</span>
-                      }
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <Card className="bg-[#1e293b] border-slate-700 shadow-xl">
-                <CardContent className="p-6 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">আইডি নাম্বার</Label>
-                      <Input value={formData.idNumber ?? ""} onChange={(e) => handleInputChange("idNumber", e.target.value)} className={inputCls} data-testid="input-id-number" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">পিন নাম্বার</Label>
-                      <Input value={formData.pin ?? ""} onChange={(e) => handleInputChange("pin", e.target.value)} className={inputCls} data-testid="input-pin" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">নাম (বাংলা)</Label>
-                      <Input value={formData.nameBangla ?? ""} onChange={(e) => handleInputChange("nameBangla", e.target.value)} className={`${inputCls} font-['Hind_Siliguri']`} data-testid="input-name-bangla" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">নাম (ইংরেজি)</Label>
-                      <Input value={formData.fullName ?? ""} onChange={(e) => handleInputChange("fullName", e.target.value.toUpperCase())} className={`${inputCls} uppercase tracking-wide`} data-testid="input-full-name" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">জন্ম তারিখ</Label>
-                      <Input value={formData.dateOfBirth ?? ""} onChange={(e) => handleInputChange("dateOfBirth", e.target.value)} className={`${inputCls} font-['Hind_Siliguri']`} data-testid="input-dob" placeholder="15 Mar 1985" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">জন্মস্থান</Label>
-                      <Input value={formData.birthPlace ?? ""} onChange={(e) => handleInputChange("birthPlace", e.target.value)} className={`${inputCls} font-['Hind_Siliguri']`} data-testid="input-birth-place" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">রক্তের গ্রুপ</Label>
-                      <Input value={formData.bloodGroup ?? ""} onChange={(e) => handleInputChange("bloodGroup", e.target.value)} className={`${inputCls} uppercase`} data-testid="input-blood-group" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">বাবার নাম</Label>
-                      <Input value={formData.fatherName ?? ""} onChange={(e) => handleInputChange("fatherName", e.target.value)} className={`${inputCls} font-['Hind_Siliguri']`} data-testid="input-father-name" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-slate-300 font-['Hind_Siliguri']">মায়ের নাম</Label>
-                      <Input value={formData.motherName ?? ""} onChange={(e) => handleInputChange("motherName", e.target.value)} className={`${inputCls} font-['Hind_Siliguri']`} data-testid="input-mother-name" />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-slate-300 font-['Hind_Siliguri']">ইস্যু তারিখ</Label>
-                    <Input value={formData.issueDate ?? ""} onChange={(e) => handleInputChange("issueDate", e.target.value)} className={`${inputCls} font-['Hind_Siliguri']`} data-testid="input-issue-date" placeholder="২১/০৫/২০২৬" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-slate-300 font-['Hind_Siliguri']">ঠিকানা</Label>
-                    <Textarea
-                      value={formData.address ?? ""}
-                      onChange={(e) => handleInputChange("address", e.target.value)}
-                      className={`${inputCls} min-h-[80px] font-['Hind_Siliguri']`}
-                      data-testid="input-address"
-                      placeholder="বাসা/হোল্ডিং: ..., গ্রাম/রাস্তা: ..., ডাকঘর: ..."
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="flex flex-col items-center justify-center pt-4 pb-8 space-y-3">
-                <div className="text-sm text-slate-400 font-['Hind_Siliguri'] flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-slate-500"></span>
-                  সার্ভিস চার্জ: ৮২
-                </div>
-                <Button
-                  onClick={handleDownload}
-                  disabled={!recordId || updateRecord.isPending}
-                  className="w-full max-w-xs bg-[#06b6d4] hover:bg-[#0891b2] text-white py-6 text-lg font-bold rounded-lg shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all hover:shadow-[0_0_30px_rgba(6,182,212,0.5)] flex items-center gap-2 font-['Hind_Siliguri'] border-none"
-                  data-testid="button-download"
-                >
-                  {updateRecord.isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                  ডাউনলোড কার্ড
-                </Button>
+          {/* Notice Banner */}
+          {serviceSettings.noticeText && (
+            <div className="notice-banner">
+              <span>NOTICE</span>
+              <div className="notice-scroll-container">
+                <div className="notice-scroll-text">{serviceSettings.noticeText}</div>
               </div>
             </div>
+          )}
+
+          {/* Service Status */}
+          <div className={`service-status-banner ${serviceSettings.serviceEnabled ? "service-status-on" : "service-status-off"}`}>
+            <i className={`fa-solid ${serviceSettings.serviceEnabled ? "fa-circle-check" : "fa-circle-xmark"}`} style={{ fontSize: "1.2rem" }} />
+            <div>
+              {serviceSettings.serviceEnabled
+                ? "সার্ভিস চালু আছে — আপনি NID কার্ড তৈরি করতে পারবেন।"
+                : "সার্ভিস বর্তমানে বন্ধ আছে। অনুগ্রহ করে পরে আবার চেষ্টা করুন।"}
+            </div>
+            {serviceSettings.serviceEnabled && (
+              <div style={{ marginLeft: "auto", background: "rgba(22,163,74,0.2)", padding: "4px 10px", borderRadius: "6px", fontSize: "0.85rem", fontWeight: 700 }}>
+                সার্ভিস চার্জ: ৳{serviceSettings.pricePerDownload}
+              </div>
+            )}
           </div>
+
+          {!serviceSettings.serviceEnabled ? (
+            <div className="data-box" style={{ textAlign: "center", padding: "60px 20px" }}>
+              <i className="fa-solid fa-ban" style={{ fontSize: "3rem", color: "var(--danger)", opacity: 0.5 }} />
+              <h3 style={{ marginTop: "15px", color: "var(--text-muted)" }}>সার্ভিস বন্ধ আছে</h3>
+              <p style={{ color: "var(--text-muted)", marginTop: "8px", fontSize: "0.9rem" }}>
+                এই সার্ভিসটি বর্তমানে অনুপলব্ধ। পরে আবার চেষ্টা করুন।
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* PDF Upload Area */}
+              <div className="data-box">
+                <div className="box-header">
+                  <h3><i className="fa-solid fa-file-pdf" style={{ marginRight: "8px", color: "var(--danger)" }} />PDF আপলোড করুন</h3>
+                  {recordId && (
+                    <button className="btn btn-warning btn-sm" onClick={handleReset}>
+                      <i className="fa-solid fa-rotate" /> রিসেট
+                    </button>
+                  )}
+                </div>
+                <div
+                  onDrop={handleDrop}
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onClick={() => document.getElementById("pdf-upload-input")?.click()}
+                  style={{
+                    border: `2px dashed ${isDragging ? "var(--info)" : "var(--border-color)"}`,
+                    borderRadius: "8px",
+                    padding: "30px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    background: isDragging ? "rgba(6,182,212,0.05)" : "var(--card-light)",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {uploadDoc.isPending ? (
+                    <div>
+                      <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: "2rem", color: "var(--info)" }} />
+                      <p style={{ marginTop: "10px", color: "var(--text-muted)" }}>তথ্য সংগ্রহ করা হচ্ছে...</p>
+                    </div>
+                  ) : recordId ? (
+                    <div>
+                      <i className="fa-solid fa-circle-check" style={{ fontSize: "2rem", color: "var(--success)" }} />
+                      <p style={{ marginTop: "10px", color: "#4ade80", fontWeight: 600 }}>PDF সফলভাবে প্রক্রিয়া হয়েছে!</p>
+                      <p style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>নিচের ফর্মে তথ্য যাচাই করুন</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: "2.5rem", color: "var(--text-muted)" }} />
+                      <p style={{ marginTop: "10px", color: "var(--text-main)", fontWeight: 600 }}>PDF ফাইল এখানে ড্র্যাগ করুন বা ক্লিক করুন</p>
+                      <p style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "5px" }}>শুধুমাত্র PDF ফাইল (সর্বোচ্চ 10MB)</p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  id="pdf-upload-input"
+                  type="file"
+                  accept="application/pdf"
+                  style={{ display: "none" }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = ""; }}
+                />
+              </div>
+
+              {/* Form Fields */}
+              <div className="data-box">
+                <div className="box-header">
+                  <h3><i className="fa-solid fa-pen-to-square" style={{ marginRight: "8px", color: "var(--info)" }} />তথ্য ফর্ম</h3>
+                </div>
+
+                {/* Photos */}
+                <div className="form-grid" style={{ marginBottom: "15px" }}>
+                  <div className="form-group">
+                    <label><i className="fa-solid fa-image" style={{ marginRight: "5px" }} />ব্যক্তির ছবি</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: 70, height: 85, borderRadius: 6, background: "var(--card-light)", border: "2px solid var(--border-color)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {photoFront
+                          ? <img src={photoFront} alt="Photo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          : <i className="fa-regular fa-image" style={{ color: "var(--text-muted)", fontSize: "1.5rem" }} />}
+                      </div>
+                      <input type="file" accept="image/*" onChange={(e) => handlePhotoUpload(e, "front")} style={{ color: "var(--text-muted)", fontSize: "0.8rem" }} />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label><i className="fa-solid fa-signature" style={{ marginRight: "5px" }} />সিগনেচার / ফিংগারপ্রিন্ট</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: 70, height: 85, borderRadius: 6, background: "#fff", border: "2px solid var(--border-color)", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {photoBack
+                          ? <img src={photoBack} alt="Signature" style={{ width: "100%", height: "100%", objectFit: "contain", padding: "4px" }} />
+                          : <i className="fa-solid fa-pen-nib" style={{ color: "#999", fontSize: "1.2rem" }} />}
+                      </div>
+                      <input type="file" accept="image/*" onChange={(e) => handlePhotoUpload(e, "back")} style={{ color: "var(--text-muted)", fontSize: "0.8rem" }} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>আইডি নাম্বার</label>
+                    <input value={formData.idNumber ?? ""} onChange={(e) => handleInputChange("idNumber", e.target.value)} placeholder="NID Number" />
+                  </div>
+                  <div className="form-group">
+                    <label>পিন নাম্বার</label>
+                    <input value={formData.pin ?? ""} onChange={(e) => handleInputChange("pin", e.target.value)} placeholder="PIN" />
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>নাম (বাংলা)</label>
+                    <input value={formData.nameBangla ?? ""} onChange={(e) => handleInputChange("nameBangla", e.target.value)} placeholder="বাংলা নাম" style={{ fontFamily: "'Hind Siliguri', sans-serif" }} />
+                  </div>
+                  <div className="form-group">
+                    <label>নাম (ইংরেজি)</label>
+                    <input value={formData.fullName ?? ""} onChange={(e) => handleInputChange("fullName", e.target.value.toUpperCase())} placeholder="ENGLISH NAME" style={{ textTransform: "uppercase", letterSpacing: "0.05em" }} />
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>জন্ম তারিখ</label>
+                    <input value={formData.dateOfBirth ?? ""} onChange={(e) => handleInputChange("dateOfBirth", e.target.value)} placeholder="15 Mar 1985" />
+                  </div>
+                  <div className="form-group">
+                    <label>জন্মস্থান</label>
+                    <input value={formData.birthPlace ?? ""} onChange={(e) => handleInputChange("birthPlace", e.target.value)} placeholder="জন্মস্থান" style={{ fontFamily: "'Hind Siliguri', sans-serif" }} />
+                  </div>
+                  <div className="form-group">
+                    <label>রক্তের গ্রুপ</label>
+                    <input value={formData.bloodGroup ?? ""} onChange={(e) => handleInputChange("bloodGroup", e.target.value.toUpperCase())} placeholder="A+" style={{ textTransform: "uppercase" }} />
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>বাবার নাম</label>
+                    <input value={formData.fatherName ?? ""} onChange={(e) => handleInputChange("fatherName", e.target.value)} placeholder="বাবার নাম" style={{ fontFamily: "'Hind Siliguri', sans-serif" }} />
+                  </div>
+                  <div className="form-group">
+                    <label>মায়ের নাম</label>
+                    <input value={formData.motherName ?? ""} onChange={(e) => handleInputChange("motherName", e.target.value)} placeholder="মায়ের নাম" style={{ fontFamily: "'Hind Siliguri', sans-serif" }} />
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label>ইস্যু তারিখ</label>
+                    <input value={formData.issueDate ?? ""} onChange={(e) => handleInputChange("issueDate", e.target.value)} placeholder="২১/০৫/২০২৬" style={{ fontFamily: "'Hind Siliguri', sans-serif" }} />
+                  </div>
+                  <div className="form-group">
+                    <label>লিঙ্গ</label>
+                    <select value={formData.gender ?? ""} onChange={(e) => handleInputChange("gender", e.target.value)}>
+                      <option value="">নির্বাচন করুন</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>ঠিকানা</label>
+                  <textarea
+                    value={formData.address ?? ""}
+                    onChange={(e) => handleInputChange("address", e.target.value)}
+                    rows={3}
+                    placeholder="বাসা/হোল্ডিং, গ্রাম/রাস্তা, ডাকঘর..."
+                    style={{ fontFamily: "'Hind Siliguri', sans-serif" }}
+                  />
+                </div>
+
+                {/* Generate Button */}
+                <div style={{ display: "flex", justifyContent: "center", paddingTop: "15px", paddingBottom: "5px" }}>
+                  <button
+                    className="btn btn-info btn-lg"
+                    onClick={handleGenerateCard}
+                    disabled={updateRecord.isPending}
+                    style={{ minWidth: "260px", fontSize: "1rem", padding: "14px 30px", boxShadow: "0 0 20px rgba(6,182,212,0.3)" }}
+                  >
+                    {updateRecord.isPending
+                      ? <><i className="fa-solid fa-spinner fa-spin" /> সংরক্ষণ হচ্ছে...</>
+                      : <><i className="fa-solid fa-id-card" /> কার্ড তৈরি ও ডাউনলোড করুন</>}
+                  </button>
+                </div>
+                <p style={{ textAlign: "center", fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "8px" }}>
+                  <i className="fa-solid fa-circle-info" style={{ marginRight: "4px" }} />
+                  কার্ড তৈরির পর My Files সেকশনে সংরক্ষিত হবে
+                </p>
+              </div>
+            </>
+          )}
         </AppLayout>
       </div>
 
-      {/* ── Print-only NID card — outside .no-print so it shows when printing ── */}
+      {/* Print-only NID Card */}
       <div className="nid-a4-page">
         <NidCard {...cardProps} />
       </div>

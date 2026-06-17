@@ -4,9 +4,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
-import Records from "@/pages/Records";
-import RecordDetail from "@/pages/RecordDetail";
-import Stats from "@/pages/Stats";
+import MyFiles from "@/pages/MyFiles";
+import Admin from "@/pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -14,9 +13,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/records" component={Records} />
-      <Route path="/records/:id" component={RecordDetail} />
-      <Route path="/stats" component={Stats} />
+      <Route path="/my-files" component={MyFiles} />
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );

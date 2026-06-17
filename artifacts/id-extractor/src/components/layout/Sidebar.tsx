@@ -1,69 +1,62 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { FolderKanban, UploadCloud, BarChart3, CheckCircle2, MoreVertical, X } from "lucide-react";
-import { useHealthCheck } from "@workspace/api-client-react";
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+const menuItems = [
+  { href: "/", label: "Sign To Need PDF", icon: "fa-solid fa-id-card" },
+  { href: "/my-files", label: "My Files", icon: "fa-solid fa-folder-open" },
+  { href: "/admin", label: "Admin Panel", icon: "fa-solid fa-sliders" },
+];
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const [location] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
-  const { data: health } = useHealthCheck();
 
-  const links = [
-    { href: "/", label: "Extract", icon: UploadCloud },
-    { href: "/records", label: "Records", icon: FolderKanban },
-    { href: "/stats", label: "Dashboard", icon: BarChart3 },
-  ];
+  const handleNav = () => {
+    setIsOpen(false);
+    onNavigate?.();
+  };
 
   return (
-    <div className="relative">
-      {/* থ্রি-ডট বাটন - যা দিয়ে মেনু কন্ট্রোল হবে */}
-      <button 
+    <>
+      <div
+        className={`sidebar-overlay${isOpen ? " active" : ""}`}
+        onClick={() => setIsOpen(false)}
+      />
+      <div className={`sidebar${isOpen ? " open" : ""}`} id="sidebar">
+        <div className="brand">
+          <i className="fa-solid fa-bolt" />
+          <span>E Online Service BD</span>
+        </div>
+        <ul className="menu-list">
+          {menuItems.map((item) => {
+            const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
+            return (
+              <Link key={item.href} href={item.href}>
+                <li
+                  className={`menu-item${isActive ? " active" : ""}`}
+                  onClick={handleNav}
+                >
+                  <i className={item.icon} />
+                  {item.label}
+                </li>
+              </Link>
+            );
+          })}
+        </ul>
+      </div>
+
+      <button
+        className="menu-toggle"
+        style={{ position: "fixed", top: "15px", left: "15px", zIndex: 200, background: "none", border: "none", fontSize: "1.3rem", cursor: "pointer", color: "var(--accent)", display: "block" }}
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-4 left-4 z-50 p-2 bg-white border border-gray-200 rounded-md shadow-sm hover:bg-gray-50"
+        id="menuToggleBtn"
       >
-        {isOpen ? <X className="w-6 h-6" /> : <MoreVertical className="w-6 h-6" />}
+        <i className="fa-solid fa-bars" />
       </button>
-
-      {/* মেনু ড্রয়ার */}
-      {isOpen && (
-        <aside className="fixed top-0 left-0 w-64 h-screen bg-white border-r border-gray-200 shadow-xl z-40 flex flex-col pt-16 transition-all duration-300">
-          <div className="px-6 pb-6">
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-6 h-6 bg-primary rounded shadow-sm flex items-center justify-center">
-                <CheckCircle2 className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-semibold text-lg">GovID Extract</span>
-            </div>
-
-            <nav className="space-y-1">
-              {links.map((link) => {
-                const isActive = location === link.href || (link.href !== "/" && location.startsWith(link.href));
-                const Icon = link.icon;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    onClick={() => setIsOpen(false)} // ক্লিক করলে মেনু হাইড হয়ে যাবে
-                    className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                      isActive ? "bg-gray-100 text-black" : "text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {link.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
-
-          <div className="mt-auto p-4 border-t border-gray-100">
-            <div className="flex items-center gap-2 px-2">
-              <div className={`w-2 h-2 rounded-full ${health?.status === "ok" ? "bg-green-500" : "bg-red-500"}`} />
-              <span className="text-xs text-gray-500">System {health?.status === "ok" ? "Online" : "Offline"}</span>
-            </div>
-          </div>
-        </aside>
-      )}
-    </div>
+    </>
   );
 }
