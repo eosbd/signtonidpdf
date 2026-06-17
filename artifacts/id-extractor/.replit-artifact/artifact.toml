@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "NID Card Maker"
+version = "1.0.0"
+id = "artifacts/id-extractor"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18202
+
+[services.development]
+run = "pnpm --filter @workspace/id-extractor run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/id-extractor", "run", "build" ]
+publicDir = "artifacts/id-extractor/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18202"
+BASE_PATH = "/"
