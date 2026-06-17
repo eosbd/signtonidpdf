@@ -1,11 +1,22 @@
-import { execFile } from "child_process";
+import { execFile, execSync } from "child_process";
 import { readdir, readFile, rm, mkdir } from "fs/promises";
 import { writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { randomBytes } from "crypto";
 
-const PDFIMAGES = "/nix/store/29bwm71lzx4b0my95bm494crhnsakj5x-replit-runtime-path/bin/pdfimages";
+function findBin(name: string): string {
+  try {
+    const found = execSync(
+      `which ${name} 2>/dev/null || ls /nix/store/*/bin/${name} 2>/dev/null | head -1`,
+      { encoding: "utf8" }
+    ).trim().split("\n")[0].trim();
+    if (found) return found;
+  } catch {}
+  return name;
+}
+
+const PDFIMAGES = findBin("pdfimages");
 
 export interface PdfImages {
   photo: string | null;
