@@ -68,25 +68,10 @@ const processBackImage = (src: string): Promise<string> =>
       ctx.drawImage(img, 0, 0);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const d = imageData.data;
-      const total = d.length / 4;
-      let grayCount = 0;
-      let darkCount = 0;
       for (let i = 0; i < d.length; i += 4) {
         const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-        if (lum >= 50 && lum <= 200) grayCount++;
-        if (lum < 40) darkCount++;
-      }
-      if (grayCount / total > 0.2) { resolve(src); return; }
-      if (darkCount / total > 0.4) {
-        for (let i = 0; i < d.length; i += 4) {
-          const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-          if (lum < 80) { d[i + 3] = 0; }
-          else { d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255; }
-        }
-      } else {
-        for (let i = 0; i < d.length; i += 4) {
-          if (d[i] > 220 && d[i + 1] > 220 && d[i + 2] > 220) { d[i + 3] = 0; }
-          else { d[i] = 0; d[i + 1] = 0; d[i + 2] = 0; d[i + 3] = 255; }
+        if (lum > 180) {
+          d[i + 3] = 0;
         }
       }
       ctx.putImageData(imageData, 0, 0);
