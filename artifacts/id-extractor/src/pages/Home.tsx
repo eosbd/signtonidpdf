@@ -407,14 +407,6 @@ export default function Home() {
                     <label>ইস্যু তারিখ</label>
                     <input value={formData.issueDate ?? ""} onChange={(e) => handleInputChange("issueDate", e.target.value)} placeholder="২১/০৫/২০২৬" style={{ fontFamily: "'Hind Siliguri', sans-serif" }} />
                   </div>
-                  <div className="form-group">
-                    <label>লিঙ্গ</label>
-                    <select value={formData.gender ?? ""} onChange={(e) => handleInputChange("gender", e.target.value)}>
-                      <option value="">নির্বাচন করুন</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                    </select>
-                  </div>
                 </div>
 
                 <div className="form-group">
