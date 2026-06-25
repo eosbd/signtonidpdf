@@ -68,7 +68,19 @@ const processBackImage = (src: string): Promise<string> =>
       ctx.drawImage(img, 0, 0);
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const d = imageData.data;
+      const total = d.length / 4;
+      let darkCount = 0;
       for (let i = 0; i < d.length; i += 4) {
+        const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        if (lum < 128) darkCount++;
+      }
+      const isInverted = darkCount > total * 0.5;
+      for (let i = 0; i < d.length; i += 4) {
+        if (isInverted) {
+          d[i] = 255 - d[i];
+          d[i + 1] = 255 - d[i + 1];
+          d[i + 2] = 255 - d[i + 2];
+        }
         const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
         if (lum > 180) {
           d[i + 3] = 0;
