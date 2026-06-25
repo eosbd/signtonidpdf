@@ -20,7 +20,7 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
   const tmpFile = join(tmpdir(), `pdf_${randomBytes(8).toString("hex")}.pdf`);
   try {
     await writeFile(tmpFile, buffer);
-    const text = await new Promise<string>((resolve, reject) => {
+    const raw = await new Promise<string>((resolve, reject) => {
       execFile(PDFTOTEXT, ["-layout", "-enc", "UTF-8", tmpFile, "-"], (err, stdout, stderr) => {
         if (err) {
           reject(new Error(`pdftotext failed: ${stderr || err.message}`));
@@ -29,6 +29,16 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
         }
       });
     });
+
+    // pdftotext -layout sometimes inserts spurious spaces between Bengali glyphs
+    // (e.g. "খাতু ন" instead of "খাতুন"). Remove spaces between consecutive Bengali chars.
+    const bengaliRe = /([\u0980-\u09FF])\s+([\u0980-\u09FF])/g;
+    let text = raw;
+    let prev = "";
+    while (prev !== text) {
+      prev = text;
+      text = text.replace(bengaliRe, "$1$2");
+    }
     return text;
   } finally {
     await unlink(tmpFile).catch(() => {});

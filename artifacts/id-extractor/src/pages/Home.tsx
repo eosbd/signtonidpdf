@@ -190,16 +190,18 @@ export default function Home() {
   };
 
   const handleGenerateCard = () => {
-    const nidNum = (formData.idNumber ?? "").replace(/\D/g, "").slice(0, 10);
+    const nidNum = (formData.idNumber ?? "").replace(/\D/g, "");
     const filename = nidNum ? `nid-${nidNum}` : "nid-card";
     const prevTitle = document.title;
     const doPrint = () => {
       document.title = filename;
       window.onafterprint = () => {
-        document.title = prevTitle;
+        setTimeout(() => {
+          document.title = prevTitle;
+        }, 3000);
         window.onafterprint = null;
       };
-      setTimeout(() => window.print(), 200);
+      setTimeout(() => window.print(), 500);
     };
     if (!recordId) { doPrint(); return; }
     const saveData = { ...formData, photoFront: photoFront ?? undefined, photoBack: photoBack ?? undefined };
