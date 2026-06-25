@@ -74,7 +74,7 @@ export function NidCard(props: NidCardProps) {
               : <div className="nid-photo-box nid-photo-placeholder">ছবি</div>
             }
             {photoBack
-              ? <img src={photoBack} className="nid-sig-box" alt="স্বাক্ষর" />
+              ? <img src={photoBack} className="nid-sig-box" alt="স্বাক্ষর" style={{ filter: "invert(1)" }} />
               : <div className="nid-sig-box nid-sig-placeholder" />
             }
           </div>
