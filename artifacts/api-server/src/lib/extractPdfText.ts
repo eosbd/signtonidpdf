@@ -30,14 +30,19 @@ export async function extractPdfText(buffer: Buffer): Promise<string> {
       });
     });
 
-    // pdftotext -layout sometimes inserts spurious spaces between Bengali glyphs
-    // (e.g. "খাতু ন" instead of "খাতুন"). Remove spaces between consecutive Bengali chars.
-    const bengaliRe = /([\u0980-\u09FF])\s+([\u0980-\u09FF])/g;
+    // pdftotext -layout sometimes inserts a spurious single space within a Bengali word
+    // when a glyph (e.g. a vowel sign + following consonant) is stored at slightly offset
+    // X positions. We only remove a space when exactly ONE Bengali character appears
+    // isolated between two spaces (or at end-of-line/field), which is the sign of a
+    // split-off glyph, not a real word boundary.
+    // e.g. "খাতু ন\n"  → "খাতুন\n"  (ন is a lone char at line end → merge)
+    // but  "রহিমা খাতুন" stays intact (খাতুন is multi-char, not lone)
+    const spuriousSpaceRe = /([\u0980-\u09FF]) ([\u0980-\u09FF])(?=[ \t]{2,}|\n|$)/g;
     let text = raw;
     let prev = "";
     while (prev !== text) {
       prev = text;
-      text = text.replace(bengaliRe, "$1$2");
+      text = text.replace(spuriousSpaceRe, "$1$2");
     }
     return text;
   } finally {
