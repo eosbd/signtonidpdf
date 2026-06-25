@@ -192,16 +192,9 @@ export default function Home() {
   const handleGenerateCard = () => {
     const nidNum = (formData.idNumber ?? "").replace(/\D/g, "");
     const filename = nidNum ? `nid-${nidNum}` : "nid-card";
-    const prevTitle = document.title;
     const doPrint = () => {
       document.title = filename;
-      window.onafterprint = () => {
-        setTimeout(() => {
-          document.title = prevTitle;
-        }, 3000);
-        window.onafterprint = null;
-      };
-      setTimeout(() => window.print(), 500);
+      window.print();
     };
     if (!recordId) { doPrint(); return; }
     const saveData = { ...formData, photoFront: photoFront ?? undefined, photoBack: photoBack ?? undefined };
